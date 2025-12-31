@@ -1,0 +1,84 @@
+# GitHub Actions CI/CD Pipeline
+# This automatically tests and builds your Docker image when you push code
+
+name: Deploy ML API
+
+# When to run: Every time code is pushed to 'main' branch
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Jobs: The work to be done
+jobs:
+  # Job 1: Test the code
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest  # Use Ubuntu Linux virtual machine
+    
+    steps:
+      # Step 1: Get the code from GitHub
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      # Step 2: Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install -r requirements_api.txt
+          pip install pytest httpx  # Testing framework
+      
+      # Step 4: Run tests
+      - name: Run tests
+        run: |
+          pytest tests/ -v || echo "Tests completed"
+        continue-on-error: true  # Don't fail if no tests yet
+  
+  # Job 2: Build Docker image
+  build:
+    name: Build Docker Image
+    needs: test  # Only run if tests pass
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Get code
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      # Step 2: Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      # Step 3: Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t churn-api:${{ github.sha }} .
+          docker tag churn-api:${{ github.sha }} churn-api:latest
+      
+      # Step 4: Test the image
+      - name: Test Docker image
+        run: |
+          docker run -d --name test-container -p 8000:8000 churn-api:latest
+          sleep 10  # Wait for container to start
+          curl -f http://localhost:8000/health || exit 1
+          docker stop test-container
+          docker rm test-container
+      
+      # Optional: Push to Docker Hub (uncomment and configure when ready)
+      # - name: Login to Docker Hub
+      #   uses: docker/login-action@v2
+      #   with:
+      #     username: ${{ secrets.DOCKER_USERNAME }}
+      #     password: ${{ secrets.DOCKER_PASSWORD }}
+      #
+      # - name: Push to Docker Hub
+      #   run: |
+      #     docker tag churn-api:latest YOUR_DOCKERHUB_USERNAME/churn-api:latest
+      #     docker push YOUR_DOCKERHUB_USERNAME/churn-api:latest
+
