@@ -1,4 +1,4 @@
-# Customer Churn Prediction API
+# Machine Learning Production API
 
 Production-ready ML inference service for customer churn prediction using FastAPI and Docker.
 
